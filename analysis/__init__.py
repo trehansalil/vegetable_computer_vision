@@ -1,6 +1,23 @@
+import os
+import configparser
+import tensorflow as tf
+import numpy as np
+
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+config_path = os.path.join(os.getcwd(), "config_file.config")
 
+config_parser = configparser.ConfigParser()
+config_parser.read(config_path)
+
+# All DB Inputs
+data_gsheet_id = config_parser.get('config', 'data_gsheet_id')
+output = config_parser.get('config', 'output_file')
+
+
+# For Reproducibility
+np.random.seed(42)
+tf.random.set_seed(42)
 
 
 def metrics_evals(y_true,y_pred, X_test):
