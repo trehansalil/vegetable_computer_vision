@@ -161,3 +161,4 @@ cython_debug/
 #.idea/
 
 ninjacart_data/
+output/
