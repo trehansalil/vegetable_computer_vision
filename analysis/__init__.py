@@ -1,24 +1,10 @@
-import os
-import configparser
-import tensorflow as tf
-import numpy as np
-
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
-config_path = os.path.join(os.getcwd(), "config_file.config")
-
-config_parser = configparser.ConfigParser()
-config_parser.read(config_path)
-
-# All DB Inputs
-data_gsheet_id = config_parser.get('config', 'data_gsheet_id')
-output = config_parser.get('config', 'output_file')
-
-
-# For Reproducibility
-np.random.seed(42)
-tf.random.set_seed(42)
-
+import glob
+import os
+import random
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def metrics_evals(y_true,y_pred, X_test):
     mse = mean_squared_error(y_true, y_pred)
@@ -32,3 +18,34 @@ def metrics_evals(y_true,y_pred, X_test):
             "MAE":mae,
             "R2":r2,
             "ADJ_R2": adj_r2}
+    
+class VisualHandler:
+    def __init__(self, folder_path):
+        self.folder_path = folder_path
+        
+    def visual_representation(self):
+        class_dirs = os.listdir(self.folder_path) # list all directories inside "train" folder
+        image_dict = {} # dict to store image array(key) for every class(value)
+        count_dict = {} # dict to store count of files(key) for every class(value)
+        # iterate over all class_dirs
+        for cls in class_dirs:
+            # get list of all paths inside the subdirectory
+            file_paths = glob.glob(os.path.join(self.folder_path, cls, "*"))
+            # count number of files in each class and add it to count_dict
+            count_dict[cls] = len(file_paths)
+            # select random item from list of image paths
+            image_path = random.choice(file_paths)
+            # load image using keras utility function and save it in image_dict
+            image_dict[cls] = tf.keras.utils.load_img(image_path)
+            
+        ## Viz Random Sample from each class
+        plt.figure(figsize=(15, 12))
+        # iterate over dictionary items (class label, image array)
+        for i, (cls,img) in enumerate(image_dict.items()):
+            # create a subplot axis
+            ax = plt.subplot(3, 4, i + 1)
+            # plot each image
+            plt.imshow(img)
+            # set "class name" along with "image size" as title
+            plt.title(f'{cls}, {img.size}')
+            plt.axis("off")               
