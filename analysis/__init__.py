@@ -55,8 +55,6 @@ class ExperimentModelling:
         self.val_ds = val_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
         self.test_ds = test_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
 
-        return self.train_ds, self.val_ds, self.test_ds
-
     def compile_train_v1(self, 
                          model, 
                          epochs=10, 
