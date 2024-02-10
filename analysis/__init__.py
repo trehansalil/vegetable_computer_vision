@@ -8,37 +8,170 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from sklearn.metrics import classification_report, confusion_matrix
 
-def preprocess(train_data, val_data, test_data, target_height=227, target_width=227):
 
-    # Data Processing Stage with resizing and rescaling operations
-    data_preprocess = tf.keras.Sequential(
-        name="data_preprocess",
-        layers=[
-            tf.keras.layers.Resizing(target_height, target_width),
-            tf.keras.layers.Rescaling(1.0/255),
-        ]
-    )
+class ExperimentModelling:
+    def __init__(self, class_weights, class_names, image_size):
+        self.log_dir = "ninjacart_log"
+        self.class_weights = class_weights
+        self.CLASS_NAMES = class_names
+        self.image_size = image_size
+        self.model = None
+        self.train_ds = None
+        self.val_ds = None
+        self.test_ds = None
+        
+    def preprocess(self, train_data, val_data, test_data):
 
-    # Perform Data Processing on the train, test dataset
-    train_ds = train_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
-    val_ds = val_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
-    test_ds = test_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+        # Data Processing Stage with resizing and rescaling operations
+        data_preprocess = tf.keras.Sequential(
+            name="data_preprocess",
+            layers=[
+                tf.keras.layers.Resizing(self.image_size[0], self.image_size[1]),
+                tf.keras.layers.Rescaling(1.0/255),
+            ]
+        )
 
-    return train_ds, val_ds, test_ds
+        # Perform Data Processing on the train, test dataset
+        self.train_ds = train_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+        self.val_ds = val_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+        self.test_ds = test_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
 
-def metrics_evals(y_true,y_pred, X_test):
-    mse = mean_squared_error(y_true, y_pred)
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
-    mae = mean_absolute_error(y_true, y_pred)
-    r2 = r2_score(y_true, y_pred)
-    adj_r2 = 1 - (1-r2)*(len(y_true)-1)/(len(y_true)-X_test.shape[1]-1)
+        return self.train_ds, self.val_ds, self.test_ds
 
-    return {"MSE":mse,
-            "RMSE":rmse,
-            "MAE":mae,
-            "R2":r2,
-            "ADJ_R2": adj_r2}
+    def compile_train_v1(self, 
+                         model, 
+                         epochs=10, 
+                         ckpt_path="/tmp/checkpoint"):
+        # tf.compat.v1.disable_eager_execution()
+        # Implement a TensorBoard callback to log each of our model metrics for each model during the training process.
+        self.model = model
+        self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=["accuracy"])
+
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=self.log_dir)
+        checkpoint_cb = tf.keras.callbacks.ModelCheckpoint(ckpt_path, save_weights_only=True, monitor='val_loss', mode='min', save_best_only=True)
+        early_stopping_cb = tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)
+
+        self.model_history = self.model.fit(self.train_ds, validation_data=self.val_ds,
+                            epochs=epochs,
+                            class_weight = self.class_weight,
+                            callbacks=[checkpoint_cb, early_stopping_cb, tensorboard_callback])
+
+        return self.model_history
+
+    def plot_acc_loss(self, metric='accuracy'):
+
+        fig, axes = plt.subplots(nrows=1, ncols=2,figsize=(15,5))
+        ax = axes.ravel()
+        n_epochs = len(self.model_history.history[f'{metric}'])
+        #accuracy graph
+        ax[0].plot(range(0, n_epochs), [acc * 100 for acc in self.model_history.history[f'{metric}']], label='Train', color='b')
+        ax[0].plot(range(0, n_epochs), [acc * 100 for acc in self.model_history.history[f'val_{metric}']], label='Val', color='r')
+        ax[0].set_title('Accuracy vs. epoch', fontsize=15)
+        ax[0].set_ylabel('Accuracy', fontsize=15)
+        ax[0].set_xlabel('epoch', fontsize=15)
+        ax[0].legend()
+
+        #loss graph
+        ax[1].plot(range(0, n_epochs), self.model_history.history['loss'], label='Train', color='b')
+        ax[1].plot(range(0, n_epochs), self.model_history.history['val_loss'], label='Val', color='r')
+        ax[1].set_title('Loss vs. epoch', fontsize=15)
+        ax[1].set_ylabel('Loss', fontsize=15)
+        ax[1].set_xlabel('epoch', fontsize=15)
+        ax[1].legend()
+
+        #display the graph
+        plt.show()
+
+    def grid_test_model(self):
+
+        fig = plt.figure(1, figsize=(17, 11))
+        plt.axis('off')
+        n = 0
+        for i in range(8):
+            n += 1
+
+            img_0 = tf.keras.utils.load_img(random.choice(test_images))
+            img_0 = tf.keras.utils.img_to_array(img_0)
+            img_0 = tf.image.resize(img_0, tuple(self.image_size))
+            img_1 = tf.expand_dims(img_0, axis = 0)
+
+            pred = self.model.predict(img_1)
+            predicted_label = tf.argmax(pred, 1).numpy().item()
+
+            for item in pred :
+                item = tf.round((item*100))
+
+                plt.subplot(2, 4, n)
+                plt.axis('off')
+                plt.title(f'prediction : {self.CLASS_NAMES[predicted_label]}\n\n'
+                        f'{item[0]} % {self.CLASS_NAMES[0]}\n'
+                        f'{item[1]} % {self.CLASS_NAMES[1]}\n'
+                        f'{item[2]} % {self.CLASS_NAMES[2]}\n'
+                        f'{item[3]} % {self.CLASS_NAMES[3]}\n')
+                plt.imshow(img_0/255)
+            plt.show()
+    
+    def ConfusionMatrix(self):
+        # Note: This logic doesn't work with shuffled datasets
+        # run model prediction and obtain probabilities
+        y_pred = self.model.predict(self.test_ds)
+        # get list of predicted classes by taking argmax of the probabilities(y_pred)
+        predicted_categories = tf.argmax(y_pred, axis=1)
+        # create list of all "y"s labels, by iterating over test dataset
+        true_categories = tf.concat([y for x, y in self.test_ds], axis=0)
+
+        print(classification_report(true_categories, predicted_categories))
+
+        # generate confusion matrix and plot it
+        cm = confusion_matrix(true_categories,predicted_categories) # last batch
+        sns.heatmap(cm, 
+                    annot=True, 
+                    xticklabels=self.CLASS_NAMES, 
+                    yticklabels=self.CLASS_NAMES, 
+                    cmap="YlGnBu", 
+                    fmt='g')
+        plt.show()
+        
+    def metrics_evals(self, y_true,y_pred, X_test):
+        mse = mean_squared_error(y_true, y_pred)
+        rmse = mean_squared_error(y_true, y_pred, squared=False)
+        mae = mean_absolute_error(y_true, y_pred)
+        r2 = r2_score(y_true, y_pred)
+        adj_r2 = 1 - (1-r2)*(len(y_true)-1)/(len(y_true)-X_test.shape[1]-1)
+
+        return {"MSE":mse,
+                "RMSE":rmse,
+                "MAE":mae,
+                "R2":r2,
+                "ADJ_R2": adj_r2}
+
+    def evaluate_model(self):
+        # Evaluate the model
+        loss, acc = self.model.evaluate(self.test_ds, verbose=2)
+        print("Accuracy of the Model with Test Data: {:5.2f}%".format(100 * acc))
+        print("Loss of the Model with Test Data: {:5.4f}".format(loss))   
+
+    def plot_image(self, pred_array, true_label, img):
+        plt.grid(False)
+        plt.xticks([])
+        plt.yticks([])
+
+        plt.imshow(img, cmap=plt.cm.binary)
+
+        predicted_label = np.argmax(pred_array)
+        if predicted_label == true_label:
+            color = 'blue'
+        else:
+            color = 'red'
+
+        plt.xlabel("{} {:2.0f}% ".format(self.CLASS_NAMES[predicted_label].capitalize(),
+                                        100*np.max(pred_array),
+                                        ),
+                                        color=color)         
+
+
 
 def remove_path(path):
     # Check if the file exists before attempting to delete it
@@ -52,6 +185,14 @@ def remove_path(path):
             print(f"{path} has been deleted.")
     else:
         print(f"The path {path} does not exist.")      
+        
+def move_directory(source_path, destination_path):
+    try:
+        # Rename function can be used to move directories in Python
+        os.rename(source_path, destination_path)
+        print(f"Directory moved from '{source_path}' to '{destination_path}' successfully.")
+    except OSError as e:
+        print(f"Error: {e}")        
         
 class VisualHandler:
     def __init__(self, folder_path):
