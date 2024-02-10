@@ -10,17 +10,34 @@ import seaborn as sns
 
 from sklearn.metrics import classification_report, confusion_matrix
 
+def remove_path(path):
+    # Check if the file exists before attempting to delete it
+    if os.path.exists(path):
+        try:
+            # Delete the file
+            os.remove(path)
+            print(f"{path} has been deleted.")
+        except:
+            shutil.rmtree(path)
+            print(f"{path} has been deleted.")
+    else:
+        print(f"The path {path} does not exist.")  
 
 class ExperimentModelling:
-    def __init__(self, class_weights, class_names, image_size):
+    def __init__(self, class_weight, class_names, image_size, test_images):
         self.log_dir = "ninjacart_log"
-        self.class_weights = class_weights
+        
+        if os.path.exists(self.log_dir):
+            remove_path(path=self.log_dir)
+         
+        self.class_weight = class_weight
         self.CLASS_NAMES = class_names
         self.image_size = image_size
         self.model = None
         self.train_ds = None
         self.val_ds = None
         self.test_ds = None
+        self.test_images = test_images
         
     def preprocess(self, train_data, val_data, test_data):
 
@@ -50,12 +67,21 @@ class ExperimentModelling:
         self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=["accuracy"])
 
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=self.log_dir)
-        checkpoint_cb = tf.keras.callbacks.ModelCheckpoint(ckpt_path, save_weights_only=True, monitor='val_loss', mode='min', save_best_only=True)
-        early_stopping_cb = tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)
+        
+        checkpoint_cb = tf.keras.callbacks.ModelCheckpoint(ckpt_path, 
+                                                           save_weights_only=True, 
+                                                           monitor='val_loss', 
+                                                           mode='min', 
+                                                           save_best_only=True)
+        
+        early_stopping_cb = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                             min_delta = 0.02,
+                                                             patience=3, 
+                                                             restore_best_weights=True)
 
         self.model_history = self.model.fit(self.train_ds, validation_data=self.val_ds,
                             epochs=epochs,
-                            class_weight = self.class_weight,
+                            class_weight=self.class_weight,
                             callbacks=[checkpoint_cb, early_stopping_cb, tensorboard_callback])
 
         return self.model_history
@@ -92,7 +118,7 @@ class ExperimentModelling:
         for i in range(8):
             n += 1
 
-            img_0 = tf.keras.utils.load_img(random.choice(test_images))
+            img_0 = tf.keras.utils.load_img(random.choice(self.test_images))
             img_0 = tf.keras.utils.img_to_array(img_0)
             img_0 = tf.image.resize(img_0, tuple(self.image_size))
             img_1 = tf.expand_dims(img_0, axis = 0)
@@ -169,22 +195,8 @@ class ExperimentModelling:
         plt.xlabel("{} {:2.0f}% ".format(self.CLASS_NAMES[predicted_label].capitalize(),
                                         100*np.max(pred_array),
                                         ),
-                                        color=color)         
-
-
-
-def remove_path(path):
-    # Check if the file exists before attempting to delete it
-    if os.path.exists(path):
-        try:
-            # Delete the file
-            os.remove(path)
-            print(f"{path} has been deleted.")
-        except:
-            shutil.rmtree(path)
-            print(f"{path} has been deleted.")
-    else:
-        print(f"The path {path} does not exist.")      
+                                        color=color)             
+  
         
 def move_directory(source_path, destination_path):
     try:
