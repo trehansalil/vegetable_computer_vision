@@ -49,13 +49,25 @@ class ExperimentModelling:
                 tf.keras.layers.Resizing(self.image_size[0], self.image_size[1]),
                 tf.keras.layers.RandomFlip("horizontal_and_vertical"),
                 tf.keras.layers.RandomRotation(0.2),
-                tf.keras.layers.RandomTranslation(height_factor = 0.2, width_factor=0.2),                  
+                tf.keras.layers.RandomTranslation(height_factor = 0.2, width_factor=0.2),     
+                tf.keras.layers.RandomFlip(),
+                tf.keras.layers.RandomContrast(factor=0.1),                             
                 tf.keras.layers.Rescaling(1.0/255),
             ]
         )
 
         # Perform Data Processing on the train, test dataset
         self.train_ds = train_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+        
+        # Data Processing Stage with resizing and rescaling operations
+        data_preprocess = tf.keras.Sequential(
+            name="data_preprocess",
+            layers=[
+                tf.keras.layers.Resizing(self.image_size[0], self.image_size[1]),              
+                tf.keras.layers.Rescaling(1.0/255),
+            ]
+        )        
+        
         self.val_ds = val_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
         self.test_ds = test_data.map(lambda x, y: (data_preprocess(x), y), num_parallel_calls=tf.data.AUTOTUNE)
 
