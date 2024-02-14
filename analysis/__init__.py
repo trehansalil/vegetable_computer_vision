@@ -47,6 +47,9 @@ class ExperimentModelling:
             name="data_preprocess",
             layers=[
                 tf.keras.layers.Resizing(self.image_size[0], self.image_size[1]),
+                tf.keras.layers.RandomFlip("horizontal_and_vertical"),
+                tf.keras.layers.RandomRotation(0.2),
+                tf.keras.layers.RandomTranslation(height_factor = 0.2, width_factor=0.2),                  
                 tf.keras.layers.Rescaling(1.0/255),
             ]
         )
