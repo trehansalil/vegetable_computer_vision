@@ -4,6 +4,7 @@ import os
 import shutil
 import random
 import tensorflow as tf
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -194,7 +195,25 @@ class ExperimentModelling:
                                         100*np.max(pred_array),
                                         ),
                                         color=color)             
-  
+
+    def cumulative_plot_image(self):
+        true_categories = tf.concat([y for x, y in self.test_ds], axis=0)
+        images = tf.concat([x for x, y in self.test_ds], axis=0)
+        y_pred = self.model.predict(self.test_ds)
+
+        # Randomly sample 15 test images and plot it with their predicted labels, and the true labels.
+        indices = random.sample(range(len(images)), 15)
+        # Color correct predictions in blue and incorrect predictions in red.
+        num_rows = 5
+        num_cols = 3
+        num_images = num_rows*num_cols
+        plt.figure(figsize=(4*num_cols, 2*num_rows))
+        for i,index in enumerate(indices):
+            plt.subplot(num_rows, num_cols, i+1)
+            self.plot_image(y_pred[index], true_categories[index], images[index])
+
+        plt.tight_layout()
+        plt.show()  
         
 def move_directory(source_path, destination_path):
     try:
