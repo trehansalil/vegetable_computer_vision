@@ -59,6 +59,7 @@ class ExperimentModelling:
     def compile_train_v1(self, 
                          model, 
                          epochs=10, 
+                         patience=3,
                          ckpt_path="/tmp/checkpoint"):
         # tf.compat.v1.disable_eager_execution()
         # Implement a TensorBoard callback to log each of our model metrics for each model during the training process.
@@ -75,7 +76,7 @@ class ExperimentModelling:
         
         early_stopping_cb = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                              min_delta = 0.02,
-                                                             patience=3, 
+                                                             patience=patience, 
                                                              restore_best_weights=True)
 
         self.model_history = self.model.fit(self.train_ds, validation_data=self.val_ds,
