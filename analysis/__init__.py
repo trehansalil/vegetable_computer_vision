@@ -80,7 +80,7 @@ class ExperimentModelling:
         # Implement a TensorBoard callback to log each of our model metrics for each model during the training process.
         self.model = model
         self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 1e-4),
-                           loss='sparse_categorical_crossentropy', metrics=["accuracy"])
+                           loss=tf.keras.losses.CategoricalCrossentropy(), metrics=["accuracy"])
 
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=self.log_dir)
         
