@@ -22,10 +22,21 @@ def remove_path(path):
             shutil.rmtree(path)
             print(f"{path} has been deleted.")
     else:
-        print(f"The path {path} does not exist.")  
+        print(f"The path {path} does not exist.") 
+
+# Create an empty list to store learning rate values
+learning_rates = []   
+         
+# Define a custom callback to get learning rate values
+class LearningRateCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        optimizer = self.model.optimizer
+        lr = tf.keras.backend.eval(optimizer.lr)
+        print(f'\nLearning Rate at epoch {epoch}:  {lr}\n')
+        learning_rates.append(lr)     
 
 class ExperimentModelling:
-    def __init__(self, class_weight, class_names, image_size, test_images):
+    def __init__(self, class_weight, class_names, image_size, initial_learning_rate, test_images):
         self.log_dir = "ninjacart_log"
         
         if os.path.exists(self.log_dir):
@@ -39,6 +50,12 @@ class ExperimentModelling:
         self.val_ds = None
         self.test_ds = None
         self.test_images = test_images
+        self.lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate,
+            decay_steps=1000,
+            decay_rate=0.9,
+            staircase=True
+        )
         
     def preprocess(self, train_data, val_data, test_data):
 
@@ -79,15 +96,15 @@ class ExperimentModelling:
         # tf.compat.v1.disable_eager_execution()
         # Implement a TensorBoard callback to log each of our model metrics for each model during the training process.
         self.model = model
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 1e-4),
-                           loss=tf.keras.losses.CategoricalCrossentropy(), metrics=["accuracy"])
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = self.lr_schedule),
+                           loss='sparse_categorical_crossentropy', metrics=["accuracy"])
 
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=self.log_dir)
         
         checkpoint_cb = tf.keras.callbacks.ModelCheckpoint(ckpt_path, 
                                                            save_weights_only=True, 
                                                            monitor='val_loss', 
-                                                           mode='min', 
+                                                           mode='min',                                                         
                                                            save_best_only=True)
         
         early_stopping_cb = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
@@ -98,9 +115,17 @@ class ExperimentModelling:
         self.model_history = self.model.fit(self.train_ds, validation_data=self.val_ds,
                             epochs=epochs,
                             class_weight=self.class_weight,
-                            callbacks=[checkpoint_cb, early_stopping_cb, tensorboard_callback])
+                            callbacks=[checkpoint_cb, early_stopping_cb, tensorboard_callback, LearningRateCallback()])
 
         return self.model_history
+    
+    # Plot learning rate values over epochs
+    def plot_lr(self, learning_rates):
+        plt.plot(learning_rates, marker='o')
+        plt.xlabel('Epoch')
+        plt.ylabel('Learning Rate')
+        plt.title('Learning Rate Schedule')
+        plt.show()    
 
     def plot_acc_loss(self, metric='accuracy'):
 
